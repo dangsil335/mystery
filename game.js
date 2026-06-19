@@ -5,7 +5,9 @@
  *   한 슬롯 = 한 장소에서 "현장 수색" 하나 또는 "NPC에게 질문" 하나.
  *   질문 하나를 고르면 답을 듣고 시간이 흐른다(다른 질문은 다음 슬롯에).
  *   '심문 종료' 없음. 모든 걸 다 할 수 없으니 선택이 중요.
- *  추리 코어(동기·기회·수단 / 거짓말 적발 / 도구 / 등급)는 동일.
+ *  추리 코어(동기·기회·수단 / 진술-물증 의문 / 도구 / 등급)는 동일.
+ *  ⚠ 시스템은 거짓말을 '확정'하지 않는다 — 진술이 물증과 어긋나면 'conflict(의문)'만 표시,
+ *    누가 범인인지는 유저가 판단(지목)한다. (matrix opportunity: false=알리바이확인 / 'conflict'=의문 / undefined=미확인)
  * ======================================================= */
 (function () {
   'use strict';
@@ -37,7 +39,7 @@
       caseData, matrix, claims, asked,
       notes: [], noteSet: new Set(),
       searched: new Set(), interrogated: new Set(), revealed: new Set(),
-      caughtLies: new Set(), takenItems: new Set(),
+      conflicts: new Set(), takenItems: new Set(),
       items: Object.keys(caseData.itemDefs).reduce((o, k) => (o[k] = 0, o), {}),
       day: 1, period: 0, timeUp: false, curLoc: null, dialogueId: null,
       accusedPick: null, finished: false,
@@ -119,17 +121,15 @@
     L().forEach((loc, i) => {
       const locked = loc.day > state.day;
       const searched = state.searched.has(loc.id);
-      const occ = loc.occupants.map((id) => S()[id]);
       const room = document.createElement('div');
       room.className = 'room' + (locked ? ' locked' : '') + (loc.isCrimeScene ? ' crime' : '') + (searched ? ' searched' : '');
       room.style.gridArea = 'r' + (i + 1);
       room.dataset.scene = loc.sceneId;
-      const figs = occ.map((s) => `<span class="room-fig ${state.interrogated.has(s.id) ? 'done' : ''}" style="background-image:url('${portraitSrc(s.portrait)}')" title="${s.name}"></span>`).join('');
-      const foot = locked ? `🔒 ${loc.day}일차` : (searched ? `<span class="ok">✓ 수색</span>` : `<span class="todo">미수색</span>`) + (occ.length ? ` · 👤${occ.length}` : '');
+      // ⚠ 맵에선 인물(NPC)을 드러내지 않는다 — 들어가 봐야 누가 있는지(혹은 빈 방인지) 안다.
+      const foot = locked ? `🔒 ${loc.day}일차 개방` : (searched ? `<span class="ok">✓ 수색됨</span>` : `<span class="todo">미조사</span>`);
       room.innerHTML =
         `<div class="room-bg" style="background-image:url('${sceneSrc(loc.sceneId)}'), linear-gradient(150deg,#241d18,#15120f)"></div>` +
         (loc.isCrimeScene ? `<div class="room-crime">현장</div>` : '') +
-        `<div class="room-figs">${figs}</div>` +
         `<div class="room-info"><div class="room-name">${loc.name}</div><div class="room-foot">${foot}</div></div>` +
         (locked ? `<div class="room-lockicon">🔒</div>` : '');
       room.onclick = locked ? () => toast(`${loc.day}일차가 되어야 들어갈 수 있습니다.`) : () => openLocation(loc.id);
@@ -166,11 +166,11 @@
     if (!occupants.length) npcBox.innerHTML = `<div class="scene-empty">이곳엔 아무도 없다. 현장을 수색할 수 있다.</div>`;
     occupants.forEach((s) => {
       const el = document.createElement('div');
-      el.className = 'scene-npc' + (state.caughtLies.has(s.id) ? ' liar' : '');
+      el.className = 'scene-npc' + (state.conflicts.has(s.id) ? ' doubt' : '');
       el.dataset.sid = s.id;
       const remain = 3 - state.asked[s.id].size;
       el.innerHTML =
-        (state.caughtLies.has(s.id) ? `<div class="snpc-lie">거짓말 적발</div>` : '') +
+        (state.conflicts.has(s.id) ? `<div class="snpc-doubt">진술 의문</div>` : '') +
         `<div class="snpc-sprite" style="background-image:url('${portraitSrc(s.portrait)}')"></div>` +
         `<div class="snpc-tag"><b>${s.name}</b><span>${s.role}</span><em>${state.interrogated.has(s.id) ? `심문 (남은 질문 ${remain})` : '심문하기'}</em></div>`;
       el.onclick = () => openDialogue(s.id);
@@ -201,10 +201,15 @@
     if (!askedAlibi(sid)) return;
     const c = [...state.revealed].find((x) => x.reveal && x.reveal.attr === 'opportunity' && x.reveal.suspectId === sid);
     if (!c) return;
-    state.matrix[sid].opportunity = c.reveal.value;
-    if (c.breaksLie && !state.caughtLies.has(sid)) { state.caughtLies.add(sid); toast(`🔴 ${S()[sid].name}의 거짓말 적발! 알리바이 주장이 현장 물증과 모순됩니다.`); }
-    else if (c.reveal.value === true) toast(`${S()[sid].name}은(는) 그 시각 현장에 있었다 — 기회 확인.`);
-    else toast(`${S()[sid].name}의 알리바이가 물증으로 확인됐다 (결백 정황).`);
+    if (c.reveal.value === true) {
+      // 진술과 그 시각 행적이 어긋남. 시스템은 "거짓말"이라 단정하지 않고 '의문'만 남긴다 — 판단은 유저 몫.
+      state.matrix[sid].opportunity = 'conflict';
+      state.conflicts.add(sid);
+      toast(`⚠ ${S()[sid].name}의 진술이 그 시각 행적과 어긋난다 — 의문이 남는다.`);
+    } else {
+      state.matrix[sid].opportunity = false; // 알리바이가 물증으로 확인됨 (결백 정황)
+      toast(`${S()[sid].name}의 알리바이가 물증으로 확인됐다 (결백 정황).`);
+    }
   }
   function doSearch(locId) {
     const loc = L().find((l) => l.id === locId);
@@ -222,13 +227,14 @@
     const lockedPrint = pendingPrint(loc);
     let html = shown.map((c) => {
       const isOpp = c.reveal && c.reveal.attr === 'opportunity';
-      const resolved = isOpp ? state.matrix[c.reveal.suspectId].opportunity !== undefined : true;
-      const broke = isOpp && resolved && c.breaksLie && state.caughtLies.has(c.reveal.suspectId);
+      const opp = isOpp ? state.matrix[c.reveal.suspectId].opportunity : undefined;
+      const resolved = isOpp ? opp !== undefined : true;
+      const conflict = isOpp && opp === 'conflict';
       const icon = c.type === 'motive' ? '📜' : c.type === 'means' ? '🗡️' : c.type === 'fingerprint' ? '🔬' : '👣';
       let extra = '';
-      if (broke) extra = ' <b class="ctr">— 증언과 모순!</b>';
-      else if (isOpp && !resolved) extra = ` <b class="need-q">— ${S()[c.reveal.suspectId].name}을(를) 심문해 알리바이를 들어야 확정</b>`;
-      return `<div class="found-clue ${broke ? 'contradiction' : ''} ${c.type === 'fingerprint' ? 'print' : ''} ${isOpp && !resolved ? 'pending' : ''}">${icon} ${c.text}${extra}</div>`;
+      if (conflict) extra = ` <b class="ctr">— ${S()[c.reveal.suspectId].name}의 진술과 어긋남 (의문)</b>`;
+      else if (isOpp && !resolved) extra = ` <b class="need-q">— ${S()[c.reveal.suspectId].name}을(를) 심문해 진술을 들어야 대조 가능</b>`;
+      return `<div class="found-clue ${conflict ? 'contradiction' : ''} ${c.type === 'fingerprint' ? 'print' : ''} ${isOpp && !resolved ? 'pending' : ''}">${icon} ${c.text}${extra}</div>`;
     }).join('');
     if (lockedPrint) html += hasItem('fingerprint_kit')
       ? `<div class="found-clue locked-print">🔬 흉기에 지문이 남아 있다. <button class="mini-btn" id="dustBtn">지문 감식</button></div>`
@@ -260,7 +266,7 @@
     el.textContent = cl.lieDetected === true ? '📟 거짓 반응 감지' : cl.lieDetected === false ? '📟 진실 반응' : (dm[s.demeanor] || '');
     el.className = 'sd-demeanor' + (cl.lieDetected === true ? ' lie' : '');
   }
-  function pressSucceeds(s) { const cl = state.claims[s.id]; return s.alibiTruth === 'lie' && (cl.lieDetected === true || state.matrix[s.id].opportunity === true); }
+  function pressSucceeds(s) { const cl = state.claims[s.id]; return s.alibiTruth === 'lie' && (cl.lieDetected === true || state.matrix[s.id].opportunity === 'conflict'); }
 
   function openDialogue(id) {
     const s = S()[id];
@@ -305,8 +311,8 @@
   }
   function askPress(s) {
     if (pressSucceeds(s)) {
-      state.matrix[s.id].opportunity = true;
-      if (!state.caughtLies.has(s.id)) { state.caughtLies.add(s.id); toast(`🔴 ${s.name}의 거짓말을 추궁으로 무너뜨렸다!`); }
+      state.matrix[s.id].opportunity = 'conflict';
+      if (!state.conflicts.has(s.id)) { state.conflicts.add(s.id); toast(`⚠ ${s.name}의 진술이 추궁에 흔들린다 — 의문이 커진다.`); }
       showAnswer(s, s.dialogue.press.success, null);
     } else { toast('근거가 부족해 추궁이 통하지 않았다. 물증이나 탐지기가 필요하다.'); showAnswer(s, s.dialogue.press.fail, null); }
   }
@@ -323,10 +329,10 @@
     const box = $('claimsBoard'); const heard = S().filter((s) => state.interrogated.has(s.id));
     if (!heard.length) { box.innerHTML = `<p class="empty">아직 들은 증언이 없습니다.</p>`; return; }
     box.innerHTML = heard.map((s) => {
-      const cl = state.claims[s.id]; const caught = state.caughtLies.has(s.id);
+      const cl = state.claims[s.id]; const doubt = state.conflicts.has(s.id);
       const alibi = cl.alibiClaim ? `주장: <b>${cl.alibiClaim}</b>` : '알리바이 미확인';
-      const tag = caught ? `<span class="claim-flag">🔴 거짓 판명</span>` : cl.lieDetected === true ? `<span class="claim-flag">📟 거짓 반응</span>` : cl.lieDetected === false ? `<span class="claim-believed">📟 진실</span>` : '';
-      return `<div class="claim-row ${caught ? 'lie' : ''}"><div class="claim-nm">${s.name}</div><div class="claim-body">${alibi} ${tag}</div></div>`;
+      const tag = doubt ? `<span class="claim-flag">⚠ 행적과 모순 (의문)</span>` : cl.lieDetected === true ? `<span class="claim-flag">📟 동요 반응</span>` : cl.lieDetected === false ? `<span class="claim-believed">📟 안정 반응</span>` : '';
+      return `<div class="claim-row ${doubt ? 'doubt' : ''}"><div class="claim-nm">${s.name}</div><div class="claim-body">${alibi} ${tag}</div></div>`;
     }).join('');
   }
   function renderMatrix() {
@@ -334,12 +340,12 @@
     S().forEach((s) => {
       const m = state.matrix[s.id]; const tr = document.createElement('tr');
       if (state.accusedPick === s.id) tr.className = 'is-culprit-guess';
-      const liar = state.caughtLies.has(s.id) ? ' 🔴' : '';
-      tr.innerHTML = `<td class="nm">${s.name}${liar}</td>` + cell(m.motive) + cell(m.opportunity) + cell(m.means);
+      const flag = state.conflicts.has(s.id) ? ' ⚠' : '';
+      tr.innerHTML = `<td class="nm">${s.name}${flag}</td>` + cell(m.motive) + cell(m.opportunity) + cell(m.means);
       tbody.appendChild(tr);
     });
   }
-  const cell = (v) => v === true ? `<td><span class="mk guilty">✓</span></td>` : v === false ? `<td><span class="mk clear">✗</span></td>` : `<td><span class="mk unknown">?</span></td>`;
+  const cell = (v) => v === true ? `<td><span class="mk guilty">✓</span></td>` : v === false ? `<td><span class="mk clear">✗</span></td>` : v === 'conflict' ? `<td><span class="mk conflict">⚠</span></td>` : `<td><span class="mk unknown">?</span></td>`;
 
   const INV_USABLE = ['revealMotive', 'revealMeans', 'revealOpportunity', 'unlock'];
   const CAPATTR = { revealMotive: 'motive', revealMeans: 'means', revealOpportunity: 'opportunity' };
@@ -374,10 +380,14 @@
   }
   function closeItemPicker() { $('itemPicker').classList.remove('active'); }
   function revealAttr(s, attr) {
-    const value = s[HASFIELD[attr]]; state.matrix[s.id][attr] = value;
-    const text = `【도구】 ${s.name}의 ${ATTR_KO[attr]}: ${value ? '있음 ✓' : '없음 ✗'}`;
+    const value = s[HASFIELD[attr]];
+    if (attr === 'opportunity') {
+      state.matrix[s.id].opportunity = value ? 'conflict' : false;
+      if (value && !state.conflicts.has(s.id)) state.conflicts.add(s.id);
+    } else state.matrix[s.id][attr] = value;
+    const disp = attr === 'opportunity' ? (value ? '행적에 의문 ⚠' : '알리바이 확인 ✗') : (value ? '있음 ✓' : '없음 ✗');
+    const text = `【도구】 ${s.name}의 ${ATTR_KO[attr]}: ${disp}`;
     if (!state.noteSet.has(text)) { state.noteSet.add(text); state.notes.unshift(text); }
-    if (attr === 'opportunity' && value === true && s.alibiTruth === 'lie' && state.interrogated.has(s.id) && !state.caughtLies.has(s.id)) { state.caughtLies.add(s.id); toast(`🔴 ${s.name}의 거짓말 적발!`); }
   }
   function renderNotes() { const box = $('notes'); box.innerHTML = state.notes.length ? state.notes.map((t) => `<div class="note">${t}</div>`).join('') : `<p class="empty">아직 수집한 단서가 없습니다.</p>`; }
 
@@ -387,8 +397,8 @@
     const ov = $('accusePicker'), grid = $('accuseGrid'); grid.innerHTML = '';
     S().forEach((s) => {
       const card = document.createElement('div');
-      card.className = 'acc-card' + (state.accusedPick === s.id ? ' picked' : '') + (state.caughtLies.has(s.id) ? ' liar' : '');
-      card.innerHTML = `<div class="acc-av" style="background-image:url('${portraitSrc(s.portrait)}')"><span>${s.name[0]}</span></div><div class="acc-nm">${s.name}</div><div class="acc-ro">${s.role}</div>` + (state.caughtLies.has(s.id) ? `<div class="acc-lie">거짓말 적발</div>` : '');
+      card.className = 'acc-card' + (state.accusedPick === s.id ? ' picked' : '') + (state.conflicts.has(s.id) ? ' doubt' : '');
+      card.innerHTML = `<div class="acc-av" style="background-image:url('${portraitSrc(s.portrait)}')"><span>${s.name[0]}</span></div><div class="acc-nm">${s.name}</div><div class="acc-ro">${s.role}</div>` + (state.conflicts.has(s.id) ? `<div class="acc-doubt">진술에 의문</div>` : '');
       card.onclick = () => { state.accusedPick = s.id; openAccusePicker(); };
       grid.appendChild(card);
     });
@@ -397,13 +407,13 @@
     $('accuseCancel').onclick = () => ov.classList.remove('active');
     ov.classList.add('active');
   }
-  function gradeFor(win, p) { if (!win) return null; const k = (p.motive ? 1 : 0) + (p.opportunity ? 1 : 0) + (p.means ? 1 : 0); return k === 3 && p.lieCaught ? 'S' : k === 3 ? 'A' : k === 2 ? 'B' : 'C'; }
+  function gradeFor(win, p) { if (!win) return null; const k = (p.motive ? 1 : 0) + (p.oppDoubt ? 1 : 0) + (p.means ? 1 : 0); return k === 3 ? 'S' : k === 2 ? 'A' : k === 1 ? 'B' : 'C'; }
   function resolve(accusedId) {
     state.finished = true; const c = state.caseData;
     const culprit = c.suspects.find((s) => s.id === c.culpritId);
     const accused = c.suspects.find((s) => s.id === accusedId);
     const win = accusedId === c.culpritId; const m = state.matrix[culprit.id];
-    const p = { motive: m.motive === true, opportunity: m.opportunity === true, means: m.means === true, lieCaught: state.caughtLies.has(culprit.id) };
+    const p = { motive: m.motive === true, means: m.means === true, oppDoubt: m.opportunity === 'conflict' };
     const v = $('verdict'); v.className = 'verdict ' + (win ? 'win' : 'lose');
     $('verdictStamp').textContent = win ? '사건 해결' : '오판 — 진범 도주';
     const g = gradeFor(win, p);
@@ -411,8 +421,8 @@
     const reveal = `<b>${culprit.name}</b>(${culprit.role})이(가) 진범이었습니다. ${c.victim.name}와(과) ${culprit.motiveReason} 살의를 품었고<b>(동기)</b>, ${c.time}의 알리바이를 거짓으로 꾸며댔으며<b>(기회)</b>, ${c.weapon}을(를) 자유로이 다룰 수 있었습니다<b>(수단)</b>.`;
     let body;
     if (win) {
-      const pl = [p.motive ? '동기 ✓' : '동기 ✗', p.opportunity ? '기회 ✓' : '기회 ✗', p.means ? '수단 ✓' : '수단 ✗', p.lieCaught ? '거짓말 적발 ✓' : '거짓말 미적발'].join(' · ');
-      body = `명탐정의 직관이 적중했습니다. ${reveal}<div class="proof-line">입증 내역 — ${pl}</div>` + (g === 'S' ? '<div class="proof-line gold">완벽한 입증입니다. 빠져나갈 구멍이 없었습니다.</div>' : g === 'C' ? '<div class="proof-line">다만 결정적 증거가 부족했습니다. 운이 따랐군요.</div>' : '');
+      const pl = [p.motive ? '동기 ✓' : '동기 ✗', p.oppDoubt ? '기회(알리바이 의문) ⚠' : '기회 미확보', p.means ? '수단 ✓' : '수단 ✗'].join(' · ');
+      body = `명탐정의 직관이 적중했습니다. ${reveal}<div class="proof-line">입증 내역 — ${pl}</div>` + (g === 'S' ? '<div class="proof-line gold">동기·수단에 더해 알리바이의 균열까지 — 빠져나갈 구멍이 없었습니다.</div>' : g === 'C' ? '<div class="proof-line">근거가 거의 없는 지목이었습니다. 운이 따랐군요.</div>' : '');
     } else body = `당신이 지목한 <b>${accused.name}</b>은(는) 결백했습니다. 진실은 따로 있었습니다 — ${reveal}`;
     $('verdictEpilogue').innerHTML = body; $('overlay').classList.add('active');
   }

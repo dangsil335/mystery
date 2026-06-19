@@ -4,7 +4,7 @@
 :root {
   --bg:#14110f; --bg2:#1d1916; --panel:#211c18; --panel2:#2a2420;
   --ink:#e8ddc7; --ink-dim:#a99c84; --gold:#c8a24b; --gold-soft:#e0c074;
-  --blood:#9b3d36; --blood-soft:#e0857c; --green:#5c8a5c; --blue:#4a6f8a;
+  --blood:#9b3d36; --blood-soft:#e0857c; --green:#5c8a5c; --blue:#4a6f8a; --warn:#e0a83e;
   --border:#3a322b; --wall:#5a4d3f; --shadow:0 8px 30px rgba(0,0,0,.55);
   --serif:'Nanum Myeongjo','Batang',Georgia,serif; --sans:'Pretendard','Malgun Gothic',system-ui,sans-serif;
 }
@@ -135,7 +135,8 @@ button:disabled { opacity:.4; cursor:not-allowed; filter:grayscale(.5); }
 .snpc-tag span { color:var(--ink-dim); font-size:.7rem; }
 .snpc-tag em { display:block; font-style:normal; color:var(--gold); font-size:.76rem; margin-top:2px; }
 .scene-npc.done .snpc-tag em { color:var(--green); }
-.snpc-lie { position:absolute; top:0; left:50%; transform:translateX(-50%); z-index:3; background:var(--blood); color:#fff; font-size:.62rem; font-weight:700; padding:2px 9px; border-radius:7px; white-space:nowrap; }
+.snpc-doubt { position:absolute; top:0; left:50%; transform:translateX(-50%); z-index:3; background:var(--warn); color:#1a1510; font-size:.62rem; font-weight:700; padding:2px 9px; border-radius:7px; white-space:nowrap; }
+.scene-npc.doubt .snpc-tag { box-shadow:0 0 0 1px var(--warn); }
 .scene-npcs.talking .scene-npc:not(.active) { opacity:.32; filter:grayscale(.7); }
 .scene-npcs.talking .scene-npc.active { transform:translateY(-10px); }
 
@@ -147,8 +148,8 @@ button:disabled { opacity:.4; cursor:not-allowed; filter:grayscale(.5); }
 .sf-close { padding:2px 9px; font-size:.8rem; }
 .sf-list { display:flex; flex-direction:column; gap:9px; }
 .found-clue { background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--gold); border-radius:8px; padding:10px 13px; font-size:.88rem; line-height:1.6; }
-.found-clue.contradiction { border-left-color:var(--blood); border-color:rgba(155,61,54,.5); background:rgba(155,61,54,.1); }
-.found-clue .ctr { color:var(--blood-soft); }
+.found-clue.contradiction { border-left-color:var(--warn); border-color:rgba(224,168,62,.5); background:rgba(224,168,62,.08); }
+.found-clue .ctr { color:var(--warn); }
 .found-clue.print { border-left-color:var(--blue); }
 .found-clue.locked-print { border-left-color:var(--ink-dim); color:var(--ink-dim); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .found-clue.muted { color:var(--ink-dim); font-style:italic; border-left-color:var(--border); }
@@ -198,8 +199,8 @@ button:disabled { opacity:.4; cursor:not-allowed; filter:grayscale(.5); }
 .claim-row:last-child { border-bottom:none; }
 .claim-nm { font-family:var(--serif); color:var(--ink); white-space:nowrap; min-width:56px; }
 .claim-body { color:var(--ink-dim); } .claim-body b { color:var(--gold-soft); }
-.claim-row.lie .claim-body { color:var(--blood-soft); }
-.claim-flag { color:var(--blood-soft); font-weight:700; } .claim-believed { color:#8db8d6; }
+.claim-row.doubt .claim-body { color:var(--warn); }
+.claim-flag { color:var(--warn); font-weight:700; } .claim-believed { color:#8db8d6; }
 table.matrix { width:100%; border-collapse:collapse; font-size:.82rem; }
 table.matrix th, table.matrix td { padding:7px 4px; text-align:center; border-bottom:1px solid var(--border); }
 table.matrix th { color:var(--ink-dim); font-weight:500; font-size:.72rem; }
@@ -208,6 +209,7 @@ table.matrix td.nm { text-align:left; font-family:var(--serif); color:var(--ink)
 .mk.guilty { background:rgba(155,61,54,.22); color:var(--blood-soft); }
 .mk.clear { background:rgba(74,111,138,.22); color:#8db8d6; }
 .mk.unknown { color:var(--ink-dim); }
+.mk.conflict { background:rgba(224,168,62,.2); color:var(--warn); }
 tr.is-culprit-guess td.nm { color:var(--gold-soft); }
 .inventory { display:flex; flex-direction:column; gap:8px; }
 .inv-item { display:flex; gap:10px; align-items:center; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
@@ -243,12 +245,12 @@ tr.is-culprit-guess td.nm { color:var(--gold-soft); }
 .acc-card { position:relative; background:var(--panel2); border:1px solid var(--border); border-radius:10px; overflow:hidden; cursor:pointer; text-align:center; padding-bottom:10px; transition:border-color .15s,transform .08s; }
 .acc-card:hover { border-color:var(--gold); transform:translateY(-2px); }
 .acc-card.picked { border-color:var(--blood); box-shadow:0 0 0 2px rgba(155,61,54,.5); }
-.acc-card.liar { box-shadow:inset 0 0 0 1px rgba(155,61,54,.4); }
+.acc-card.doubt { box-shadow:inset 0 0 0 1px rgba(224,168,62,.5); }
 .acc-av { height:120px; background-size:cover; background-position:center top; background-color:var(--panel); display:flex; align-items:center; justify-content:center; }
 .acc-av span { font-family:var(--serif); font-size:2rem; color:var(--ink-dim); opacity:.4; }
 .acc-nm { font-family:var(--serif); font-size:1.02rem; color:var(--ink); margin-top:7px; }
 .acc-ro { font-size:.74rem; color:var(--ink-dim); }
-.acc-lie { margin-top:5px; font-size:.64rem; color:#fff; background:var(--blood); display:inline-block; padding:2px 8px; border-radius:8px; }
+.acc-doubt { margin-top:5px; font-size:.64rem; color:#1a1510; background:var(--warn); display:inline-block; padding:2px 8px; border-radius:8px; }
 .accuse-btns { display:flex; gap:12px; justify-content:center; }
 
 /* ---------------- 일차 전환 / 결과 ---------------- */
