@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>저택의 그림자 — 추리게임</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=19" />
+</head>
+<body>
+  <!-- ===================== 메인(타이틀) ===================== -->
+  <div class="screen active" id="titleScreen">
+    <div class="title-wrap">
+      <div class="title-mark">A PROCEDURAL WHODUNIT</div>
+      <h1 class="title-main">저택의 그림자</h1>
+      <div class="title-rule"></div>
+      <p class="title-pitch">폭우가 쏟아진 밤, 저택에서 벌어진 살인.<br>아침 · 점심 · 저녁, 단 <b>9번의 수사</b>로 진범을 가려내라.</p>
+      <button class="primary big" id="titleStartBtn">게임 시작</button>
+      <p class="title-foot">매 사건마다 범인 · 동기 · 인물 · 단서가 새로 생성됩니다.</p>
+    </div>
+  </div>
+
+  <!-- ===================== 인트로 (사건 전말) ===================== -->
+  <div class="screen" id="introScreen">
+    <div class="briefing">
+      <div class="case-no" id="caseNo">CASE FILE</div>
+      <h2 id="caseTitle">사건 파일을 여는 중…</h2>
+      <p class="scene" id="caseScene"></p>
+      <div class="facts" id="caseFacts"></div>
+      <p class="brief-rule">
+        저택의 <b>평면도</b>를 펼쳐 장소를 찾아갑니다. 그곳의 인물을 <b>심문</b>하거나 현장을 <b>수색</b>하세요.
+        <b>수색</b>은 동기·수단을 밝히지만, <b>기회</b>(알리바이)는 그 인물을 <b>직접 심문</b>해야만 확정됩니다. 범인은 <b class="red">거짓말</b>로 알리바이를 꾸미고 거짓 목격담으로 유도하니, 증언을 물증과 대조해 동기·기회·수단을 모두 가진 단 한 사람을 찾으세요. (하루 아침·점심·저녁 3번, 총 9번)
+      </p>
+      <button class="primary big" id="startBtn">수사 시작</button>
+    </div>
+  </div>
+
+  <!-- ===================== 게임 (전체화면 스테이지) ===================== -->
+  <div class="screen" id="gameScreen">
+    <div class="hud-top">
+      <div class="hud-left">저택의 그림자</div>
+      <div class="hud-mid">
+        <span>일차 <b id="dayNow">1</b>/<b id="dayTotal">3</b></span>
+        <span class="period-wrap"><b id="periodLabel">아침</b><span class="period-dots" id="periodDots"></span></span>
+        <span>단서 <b id="clueCount">0</b></span>
+      </div>
+      <div class="hud-right">
+        <button class="hud-btn" id="openNotebook">🗒 수첩</button>
+        <button class="hud-btn accuse" id="accuseBtn">⚖ 지목</button>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <!-- 평면도 맵 -->
+      <div class="map-view" id="mapView">
+        <div class="map-frame">
+          <div class="map-titleblock">저택 평면도 <span id="mapDayHint"></span></div>
+          <div class="floorplan" id="floorplan"></div>
+          <div class="map-legend">🔒 잠긴 구역 · 👤 인물 있음 · ✓ 수색 완료</div>
+        </div>
+      </div>
+
+      <!-- 장소 씬 (전체화면) -->
+      <div class="scene-view" id="sceneView" hidden>
+        <div class="scene-bg" id="sceneBg"></div>
+        <div class="scene-shade"></div>
+        <div class="scene-top">
+          <button class="scene-back" id="sceneBack">◀ 평면도로</button>
+          <div class="scene-title" id="sceneTitle"></div>
+        </div>
+        <div class="scene-npcs" id="sceneNpcs"></div>
+        <div class="scene-actionbar" id="sceneActionbar"></div>
+
+        <!-- 발견물 패널 -->
+        <div class="scene-found" id="sceneFound" hidden>
+          <div class="sf-head">발견한 단서 <button class="sf-close" id="sceneFoundClose">✕</button></div>
+          <div class="sf-list" id="sceneFoundList"></div>
+          <div class="sf-foot" id="sceneFoundFoot"></div>
+        </div>
+
+        <!-- 심문 대화창 -->
+        <div class="scene-dialogue" id="sceneDialogue" hidden>
+          <div class="sd-portrait" id="sdPortrait"><span id="sdFallback"></span></div>
+          <div class="sd-main">
+            <div class="sd-nameplate">
+              <span class="sd-name" id="sdName"></span>
+              <span class="sd-role" id="sdRole"></span>
+              <span class="sd-demeanor" id="sdDemeanor"></span>
+            </div>
+            <div class="sd-text" id="sdText"></div>
+            <div class="sd-lead" id="sdLead" hidden></div>
+            <div class="sd-choices" id="sdChoices"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 수첩 (슬라이드 패널) ===================== -->
+  <div class="overlay side" id="notebookPanel">
+    <div class="nb-panel">
+      <div class="nb-top"><h3>수사 수첩</h3><button class="nb-x" id="closeNotebook">✕</button></div>
+      <div class="nb-scroll">
+        <div class="nb-section">
+          <h4>증언 보드 <span class="hint-inline">주관 · 거짓 가능</span></h4>
+          <div class="claims" id="claimsBoard"><p class="empty">아직 들은 증언이 없습니다.</p></div>
+        </div>
+        <div class="nb-section">
+          <h4>물증 매트릭스 <span class="hint-inline"><span style="color:#e0857c">유죄 ✓</span>/<span style="color:#8db8d6">결백 ✗</span></span></h4>
+          <table class="matrix">
+            <thead><tr><th style="text-align:left">용의자</th><th>동기</th><th>기회</th><th>수단</th></tr></thead>
+            <tbody id="matrixBody"></tbody>
+          </table>
+        </div>
+        <div class="nb-section">
+          <h4>소지 도구</h4>
+          <div class="inventory" id="inventory"><p class="empty">아직 발견한 도구가 없습니다.</p></div>
+        </div>
+        <div class="nb-section">
+          <h4>단서 기록</h4>
+          <div class="notes" id="notes"><p class="empty">아직 수집한 단서가 없습니다.</p></div>
+        </div>
+        <button class="ghost full" id="restartBtn2">수사 포기 — 메인으로</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 도구 사용 ===================== -->
+  <div class="overlay" id="itemPicker">
+    <div class="item-box">
+      <div class="item-title" id="itemPickerTitle"></div>
+      <p class="item-hint" id="itemPickerHint"></p>
+      <div class="item-list" id="itemPickerList"></div>
+      <div class="item-btns"><button class="ghost" id="itemPickerCancel">취소</button></div>
+    </div>
+  </div>
+
+  <!-- ===================== 지목 패널 ===================== -->
+  <div class="overlay" id="accusePicker">
+    <div class="accuse-box">
+      <div class="accuse-title">진범을 지목하라</div>
+      <p class="accuse-hint">동기·기회·수단을 모두 갖춘 단 한 사람입니다. 수첩을 근거로 선택하세요.</p>
+      <div class="accuse-grid" id="accuseGrid"></div>
+      <div class="accuse-btns">
+        <button class="ghost" id="accuseCancel">취소</button>
+        <button class="primary" id="accuseConfirm" disabled>이 사람을 진범으로 확정</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 일차 전환 ===================== -->
+  <div class="overlay" id="dayOverlay">
+    <div class="day-box">
+      <div class="day-no" id="dayOverlayNo">1일차</div>
+      <p class="day-brief" id="dayOverlayBrief"></p>
+      <button class="primary" id="dayOverlayBtn">수사 시작</button>
+    </div>
+  </div>
+
+  <!-- ===================== 결과 ===================== -->
+  <div class="overlay" id="overlay">
+    <div class="verdict" id="verdict">
+      <div class="stamp" id="verdictStamp"></div>
+      <div class="grade" id="verdictGrade"></div>
+      <div class="epilogue" id="verdictEpilogue"></div>
+      <div class="btns"><button class="primary" id="playAgainBtn">메인으로 돌아가기</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="engine.js?v=19"></script>
+  <script src="game.js?v=19"></script>
+</body>
+</html>
