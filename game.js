@@ -37,7 +37,7 @@
     });
     return {
       caseData, matrix, claims, asked,
-      notes: [], noteSet: new Set(),
+      notes: [], noteSet: new Set(), dialogueLog: [],
       searched: new Set(), interrogated: new Set(), revealed: new Set(),
       conflicts: new Set(), takenItems: new Set(),
       items: Object.keys(caseData.itemDefs).reduce((o, k) => (o[k] = 0, o), {}),
@@ -61,7 +61,7 @@
     show('introScreen');
   }
   function goToTitle() {
-    ['overlay', 'itemPicker', 'accusePicker', 'dayOverlay', 'notebookPanel'].forEach((id) => $(id).classList.remove('active'));
+    ['overlay', 'itemPicker', 'accusePicker', 'dayOverlay', 'notebookPanel', 'logOverlay'].forEach((id) => $(id).classList.remove('active'));
     $('sceneView').hidden = true; $('mapView').hidden = false; $('sceneDialogue').hidden = true; $('sceneFound').hidden = true;
     show('titleScreen');
   }
@@ -111,7 +111,27 @@
     for (let i = 0; i < PERIODS.length; i++) { const d = document.createElement('i'); d.className = 'pdot' + (i < state.period ? ' past' : (i === state.period && !state.timeUp ? ' now' : '')); dots.appendChild(d); }
     $('clueCount').textContent = state.noteSet.size;
   }
-  function refreshNotebook() { renderClaims(); renderMatrix(); renderInventory(); renderNotes(); }
+  function refreshNotebook() { renderCaseInfo(); renderClaims(); renderMatrix(); renderInventory(); renderNotes(); }
+  function renderCaseInfo() {
+    if (!state) return;
+    const c = state.caseData;
+    $('caseInfo').innerHTML = [['피해자', `${c.victim.name} (${c.victim.title})`], ['발견 장소', c.crimeScene.name], ['추정 시각', c.time], ['흉기', c.weapon]]
+      .map(([k, v]) => `<div class="ci-row"><span>${k}</span><b>${v}</b></div>`).join('');
+  }
+  function logTalk(s, q, a) { state.dialogueLog.push({ npcId: s.id, name: s.name, role: s.role, q, a }); }
+  function renderLog() {
+    const box = $('logList');
+    if (!state.dialogueLog.length) { box.innerHTML = `<p class="empty">아직 나눈 대화가 없습니다. 인물을 심문하면 여기에 모입니다.</p>`; return; }
+    const order = [], byNpc = {};
+    state.dialogueLog.forEach((e) => { if (!byNpc[e.npcId]) { byNpc[e.npcId] = { name: e.name, role: e.role, items: [] }; order.push(e.npcId); } byNpc[e.npcId].items.push(e); });
+    box.innerHTML = order.map((id) => {
+      const g = byNpc[id];
+      const rows = g.items.map((e) => `<div class="log-qa"><div class="log-q">▸ ${e.q}</div><div class="log-a">“${e.a}”</div></div>`).join('');
+      return `<div class="log-npc"><div class="log-name">${g.name} <span>${g.role}</span></div>${rows}</div>`;
+    }).join('');
+  }
+  function openLog() { renderLog(); $('logOverlay').classList.add('active'); }
+  function closeLog() { $('logOverlay').classList.remove('active'); }
 
   // ----------------------------- 평면도 맵 -----------------------------
   function renderMap() {
@@ -181,6 +201,7 @@
     const mk = (label, cls, fn) => { const b = document.createElement('button'); b.className = cls; b.textContent = label; b.onclick = fn; bar.appendChild(b); };
     if (!searched) mk('🔍 현장 수색 (시간 1)', 'primary', () => doSearch(loc.id));
     else mk('🔎 발견 단서 다시 보기', 'ghost', () => openFound(false));
+    if (searched && pendingPrint(loc) && hasItem('fingerprint_kit')) mk('🔬 지문 감식 (시간 1)', 'primary', () => doDust(loc.id));
     mk('🗒 수첩', 'ghost', openNotebook);
     renderHud();
   }
@@ -237,11 +258,10 @@
       return `<div class="found-clue ${conflict ? 'contradiction' : ''} ${c.type === 'fingerprint' ? 'print' : ''} ${isOpp && !resolved ? 'pending' : ''}">${icon} ${c.text}${extra}</div>`;
     }).join('');
     if (lockedPrint) html += hasItem('fingerprint_kit')
-      ? `<div class="found-clue locked-print">🔬 흉기에 지문이 남아 있다. <button class="mini-btn" id="dustBtn">지문 감식</button></div>`
+      ? `<div class="found-clue locked-print">🔬 흉기에 지문이 남아 있다 — 감식 키트로 채취 가능. (현장의 「지문 감식」 행동)</div>`
       : `<div class="found-clue locked-print">🔬 흉기에 지문이 보이지만, <b>감식 키트</b>가 있어야 채취할 수 있다.</div>`;
     if (!shown.length && !lockedPrint) html = `<div class="found-clue muted">이렇다 할 단서가 없었다.</div>`;
     $('sceneFoundList').innerHTML = html;
-    const d = $('dustBtn'); if (d) d.onclick = () => doDust(loc.id);
     const foot = $('sceneFoundFoot'); foot.innerHTML = '';
     const b = document.createElement('button');
     if (commit) { b.className = 'primary'; b.textContent = '▶ 확인 (시간이 흐른다)'; b.onclick = commitAction; }
@@ -253,7 +273,7 @@
     const loc = L().find((l) => l.id === locId); const c = pendingPrint(loc);
     if (!c || !hasItem('fingerprint_kit')) { toast('지문 감식 키트가 필요합니다.'); return; }
     applyClue(loc, c); toast('🔬 지문을 채취했다!'); refreshNotebook();
-    openFound(!state.searched.has(locId) ? true : ($('sceneFoundFoot').querySelector('.primary') ? true : false));
+    openFound(true); // 지문 감식 = 하나의 행동(시간 1) → 확인 시 시간 경과
   }
 
   // ----------------------------- 심문 (질문 1개 = 1슬롯) -----------------------------
@@ -307,19 +327,25 @@
     state.asked[s.id].add(qid);
     const T = s.dialogue.topics[qid];
     if (qid === 'alibi') { state.claims[s.id].alibiClaim = T.claim; tryResolveOpp(s.id); }
+    logTalk(s, T.q, T.a);
     showAnswer(s, T.a, qid === 'alibi' ? s.dialogue.lead : null);
   }
   function askPress(s) {
+    let line;
     if (pressSucceeds(s)) {
       state.matrix[s.id].opportunity = 'conflict';
       if (!state.conflicts.has(s.id)) { state.conflicts.add(s.id); toast(`⚠ ${s.name}의 진술이 추궁에 흔들린다 — 의문이 커진다.`); }
-      showAnswer(s, s.dialogue.press.success, null);
-    } else { toast('근거가 부족해 추궁이 통하지 않았다. 물증이나 탐지기가 필요하다.'); showAnswer(s, s.dialogue.press.fail, null); }
+      line = s.dialogue.press.success;
+    } else { toast('근거가 부족해 추궁이 통하지 않았다. 물증이나 탐지기가 필요하다.'); line = s.dialogue.press.fail; }
+    logTalk(s, s.dialogue.press.q, line);
+    showAnswer(s, line, null);
   }
   function askLieDetector(s) {
     state.items.lie_detector--; state.claims[s.id].lieDetected = s.alibiTruth !== 'real'; setDemeanor(s);
     toast('📟 거짓말 탐지기를 사용했다.');
-    showAnswer(s, state.claims[s.id].lieDetected ? '(탐지기 바늘이 거칠게 튄다 — 이 사람, 무언가 숨기고 있다.)' : '(탐지기 바늘이 잔잔하다 — 지금 진술은 진실로 보인다.)', null);
+    const line = state.claims[s.id].lieDetected ? '(탐지기 바늘이 거칠게 튄다 — 이 사람, 무언가 숨기고 있다.)' : '(탐지기 바늘이 잔잔하다 — 지금 진술은 진실로 보인다.)';
+    logTalk(s, '📟 거짓말 탐지기 사용', line);
+    showAnswer(s, line, null);
   }
 
   // ----------------------------- 수첩 -----------------------------
@@ -437,6 +463,9 @@
     $('notebookPanel').onclick = (e) => { if (e.target.id === 'notebookPanel') closeNotebook(); };
     $('sceneBack').onclick = backToMap;
     $('sceneFoundClose').onclick = () => { $('sceneFound').hidden = true; };
+    $('openLog').onclick = openLog;
+    $('logClose').onclick = closeLog;
+    $('logOverlay').onclick = (e) => { if (e.target.id === 'logOverlay') closeLog(); };
     $('restartBtn2').onclick = () => { closeNotebook(); goToTitle(); };
     $('playAgainBtn').onclick = goToTitle;
   }

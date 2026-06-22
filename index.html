@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=24" />
+  <link rel="stylesheet" href="style.css?v=34" />
 </head>
 <body>
   <!-- ===================== 메인(타이틀) ===================== -->
@@ -66,9 +66,15 @@
       <div class="scene-view" id="sceneView" hidden>
         <div class="scene-bg" id="sceneBg"></div>
         <div class="scene-shade"></div>
+        <div class="story-fade" id="storyFade"></div>
         <div class="scene-top">
           <button class="scene-back" id="sceneBack">◀ 평면도로</button>
           <div class="scene-title" id="sceneTitle"></div>
+        </div>
+        <div class="scene-hotspots" id="sceneHotspots" hidden></div>
+        <div class="dlg-stage" id="dlgStage" hidden>
+          <div class="dlg-sprite left" id="dlgLeft" hidden><div class="dlg-img"></div></div>
+          <div class="dlg-sprite right" id="dlgRight" hidden><div class="dlg-img"></div></div>
         </div>
         <div class="scene-npcs" id="sceneNpcs"></div>
         <div class="scene-actionbar" id="sceneActionbar"></div>
@@ -104,6 +110,11 @@
       <div class="nb-top"><h3>수사 수첩</h3><button class="nb-x" id="closeNotebook">✕</button></div>
       <div class="nb-scroll">
         <div class="nb-section">
+          <h4>사건 개요</h4>
+          <div class="case-info" id="caseInfo"></div>
+        </div>
+        <button class="ghost full log-btn" id="openLog">💬 대화 일지 보기</button>
+        <div class="nb-section">
           <h4>증언 보드 <span class="hint-inline">주관 · 거짓 가능</span></h4>
           <div class="claims" id="claimsBoard"><p class="empty">아직 들은 증언이 없습니다.</p></div>
         </div>
@@ -124,6 +135,14 @@
         </div>
         <button class="ghost full" id="restartBtn2">수사 포기 — 메인으로</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===================== 대화 일지 ===================== -->
+  <div class="overlay" id="logOverlay">
+    <div class="log-box">
+      <div class="log-top"><h3>대화 일지</h3><button class="nb-x" id="logClose">✕</button></div>
+      <div class="log-scroll" id="logList"></div>
     </div>
   </div>
 
@@ -171,7 +190,8 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="engine.js?v=24"></script>
-  <script src="game.js?v=24"></script>
+  <!-- 절차생성 모드 보관: engine.js / game.js (현재 미로드) -->
+  <script src="story/prologue.js?v=34"></script>
+  <script src="story/story.js?v=34"></script>
 </body>
 </html>
