@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@500;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=47" />
+  <link rel="stylesheet" href="style.css?v=61" />
 </head>
 <body>
   <!-- ===================== 메인(타이틀) ===================== -->
@@ -17,7 +17,10 @@
       <h1 class="title-main">저택의 그림자</h1>
       <div class="title-rule"></div>
       <p class="title-pitch">잿빛 폭우의 런던, 탐정 <b>비비안</b>과 조수 <b>릴리</b>.<br>현장을 탐문하고, 진술의 <b>모순</b>을 짚어 진실을 가려내는 추리 어드벤처.</p>
-      <button class="primary big" id="titleStartBtn">이야기 시작</button>
+      <div class="title-btns">
+        <button class="primary big" id="titleStartBtn">새 게임</button>
+        <button class="ghost big" id="titleLoadBtn">불러오기</button>
+      </div>
       <p class="title-foot">프롤로그 「베이커 가 22번지의 모순」 — 사라진 금제 루비 만년필</p>
     </div>
   </div>
@@ -47,6 +50,7 @@
         <span>단서 <b id="clueCount">0</b></span>
       </div>
       <div class="hud-right">
+        <button class="hud-btn" id="saveBtn">💾 저장 · 불러오기</button>
         <button class="hud-btn" id="openNotebook">🗒 수첩</button>
         <button class="hud-btn accuse" id="accuseBtn">⚖ 지목</button>
       </div>
@@ -72,6 +76,7 @@
           <div class="scene-title" id="sceneTitle"></div>
         </div>
         <div class="scene-hotspots" id="sceneHotspots" hidden></div>
+        <div class="closeup" id="closeup" hidden><img id="closeupImg" alt="" /></div>
         <div class="dlg-stage" id="dlgStage" hidden>
           <div class="dlg-sprite left" id="dlgLeft" hidden><div class="dlg-img"></div></div>
           <div class="dlg-sprite right" id="dlgRight" hidden><div class="dlg-img"></div></div>
@@ -188,6 +193,35 @@
     </div>
   </div>
 
+  <!-- ===================== 저장 / 불러오기 ===================== -->
+  <div class="overlay" id="saveLoad">
+    <div class="sl-box">
+      <div class="sl-top"><h3 id="slTitle">저장 · 불러오기</h3><button class="nb-x" id="slClose">✕</button></div>
+      <div class="sl-list" id="slList"></div>
+    </div>
+  </div>
+
+  <!-- ===================== 장소 · 시각 인장 ===================== -->
+  <div id="placeCard" hidden>
+    <div class="pc-inner">
+      <div class="pc-place" id="pcPlace"></div>
+      <div class="pc-line"></div>
+      <div class="pc-time" id="pcTime"></div>
+    </div>
+  </div>
+
+  <!-- ===================== 문서(전보·편지) 이미지 팝업 ===================== -->
+  <div id="docView" hidden>
+    <div class="doc-wrap">
+      <img id="docImg" alt="" hidden />
+      <div class="doc-paper" id="docPaper" hidden>
+        <div class="doc-title" id="docTitle"></div>
+        <div class="doc-body" id="docBody"></div>
+      </div>
+      <div class="doc-hint">— 클릭하여 계속 —</div>
+    </div>
+  </div>
+
   <!-- ===================== 챕터 타이틀 카드 ===================== -->
   <div id="chapterCard" hidden>
     <div class="cc-kind" id="ccKind"></div>
@@ -199,7 +233,7 @@
   <div class="toast" id="toast"></div>
 
   <!-- 절차생성 모드 보관: engine.js / game.js (현재 미로드) -->
-  <script src="story/prologue.js?v=49"></script>
-  <script src="story/story.js?v=47"></script>
+  <script src="story/prologue.js?v=67"></script>
+  <script src="story/story.js?v=68"></script>
 </body>
 </html>
